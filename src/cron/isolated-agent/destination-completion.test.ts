@@ -2,6 +2,7 @@ import path from "node:path";
 import { assert, describe, expect, it, vi } from "vitest";
 import { makeZeroUsageSnapshot } from "../../agents/usage.js";
 import type { ReplyPayload } from "../../auto-reply/reply-payload.js";
+import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.js";
 import { initSessionState } from "../../auto-reply/reply/session.js";
 import {
   deleteSessionEntryLifecycle,
@@ -105,13 +106,13 @@ describe("destination-owned completion", () => {
 
         const reply = await initSessionState({
           cfg: fixture.params.cfgWithAgentDefaults,
-          ctx: {
-            RawBody: "ok",
+          ctx: finalizeInboundContext({
+            Body: "ok",
             ChatType: "direct",
             SessionKey: destination.sessionKey,
             Provider: "telegram",
             From: "telegram:12345",
-          },
+          }),
         });
         expect(reply).toMatchObject({
           isNewSession: false,
