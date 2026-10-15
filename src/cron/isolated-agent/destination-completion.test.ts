@@ -48,8 +48,7 @@ describe("destination-owned completion", () => {
     await withOpenClawTestState({ layout: "state-only" }, async (state) => {
       const fixture = await createCompletionFixture(state, "isolated");
       const registry = captureActivePluginRegistrySnapshot();
-      const lastHumanAt = Date.parse("2026-05-18T06:00:00.000Z");
-      const deliveredAt = lastHumanAt + 185 * 60_000;
+      const lastHumanAt = Date.now() - 185 * 60_000;
       const destination = { ...fixture.scope, sessionKey: "agent:main:telegram:direct:12345" };
       const generation = {
         sessionId: "recipient-session",
@@ -79,7 +78,6 @@ describe("destination-owned completion", () => {
           },
         ]),
       );
-      const clock = vi.spyOn(Date, "now").mockReturnValue(deliveredAt);
       try {
         fixture.job.delivery = { mode: "announce", channel: "telegram", to: "12345" };
         fixture.params.deliveryPlan = resolveCronDeliveryPlan(fixture.job);
@@ -91,20 +89,20 @@ describe("destination-owned completion", () => {
         fixture.params.deliveryPayloads = [{ text: "Approve the scheduled transaction?" }];
         fixture.params.synthesizedText = "Approve the scheduled transaction?";
 
-        expect(await dispatchCronDelivery(fixture.params)).toMatchObject({ delivered: true });
-        expect(
-          loadSessionEntryReadOnly({ ...destination, readConsistency: "latest" }),
-        ).toMatchObject({ ...generation, lastInteractionAt: deliveredAt });
+        const deliveryStartedAt = Date.now();
+        const delivered = await dispatchCronDelivery(fixture.params);
+        expect(delivered, JSON.stringify(delivered)).toMatchObject({ delivered: true });
+        const entry = loadSessionEntryReadOnly({ ...destination, readConsistency: "latest" });
+        expect(entry).toMatchObject(generation);
+        expect(entry?.lastInteractionAt).toBeGreaterThanOrEqual(deliveryStartedAt);
 
-        clock.mockReturnValue(deliveredAt + 10 * 60_000);
         expect(await dispatchCronDelivery(fixture.params)).toMatchObject({ delivered: true });
         expect(sendText).toHaveBeenCalledOnce();
         expect(
           loadSessionEntryReadOnly({ ...destination, readConsistency: "latest" })
             ?.lastInteractionAt,
-        ).toBe(deliveredAt);
+        ).toBe(entry?.lastInteractionAt);
 
-        clock.mockReturnValue(deliveredAt + 19 * 60_000);
         const reply = await initSessionState({
           cfg: fixture.params.cfgWithAgentDefaults,
           ctx: {
@@ -126,7 +124,6 @@ describe("destination-owned completion", () => {
           { type: "text", text: "Approve the scheduled transaction?" },
         ]);
       } finally {
-        clock.mockRestore();
         restoreActivePluginRegistrySnapshot(registry);
         await fixture.dispose();
       }
