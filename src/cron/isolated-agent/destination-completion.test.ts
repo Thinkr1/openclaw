@@ -106,6 +106,7 @@ describe("destination-owned completion", () => {
 
         const reply = await initSessionState({
           cfg: fixture.params.cfgWithAgentDefaults,
+          commandAuthorized: false,
           ctx: finalizeInboundContext({
             Body: "ok",
             ChatType: "direct",
